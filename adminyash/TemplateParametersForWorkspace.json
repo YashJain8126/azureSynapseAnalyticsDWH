@@ -1,0 +1,18 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"workspaceName": {
+			"value": "adminyash"
+		},
+		"adminyash-WorkspaceDefaultSqlServer_connectionString": {
+			"value": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:adminyash.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
+		},
+		"LS_Datalake_properties_typeProperties_url": {
+			"value": "https://synapsdwhlake.dfs.core.windows.net/"
+		},
+		"adminyash-WorkspaceDefaultStorage_properties_typeProperties_url": {
+			"value": "https://manageddatalakesynaps.dfs.core.windows.net"
+		}
+	}
+}

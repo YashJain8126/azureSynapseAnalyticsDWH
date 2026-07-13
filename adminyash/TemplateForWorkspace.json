@@ -12,6 +12,10 @@
 			"metadata": "Secure string for 'connectionString' of 'adminyash-WorkspaceDefaultSqlServer'",
 			"defaultValue": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:adminyash.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
 		},
+		"ExtLake_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://synapsdwhlake.dfs.core.windows.net/"
+		},
 		"LS_Datalake_properties_typeProperties_url": {
 			"type": "string",
 			"defaultValue": "https://synapsdwhlake.dfs.core.windows.net/"
@@ -536,6 +540,25 @@
 			]
 		},
 		{
+			"name": "[concat(parameters('workspaceName'), '/ExtLake')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('ExtLake_properties_typeProperties_url')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
 			"name": "[concat(parameters('workspaceName'), '/LS_Datalake')]",
 			"type": "Microsoft.Synapse/workspaces/linkedServices",
 			"apiVersion": "2019-06-01-preview",
@@ -695,6 +718,86 @@
 			"properties": {
 				"type": "ManagedIdentity",
 				"typeProperties": {}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/externalResources')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "--Database Scoped Credential\nCREATE DATABASE SCOPED CREDENTIAL yashCreds\nWITH IDENTITY = 'Managed Identity'\n\n--External Data Source \nCREATE EXTERNAL DATA SOURCE silver_source\nWITH(\n    LOCATION = 'https://synapsdwhlake.dfs.core.windows.net/silver/',\n    CREDENTIAL = yashCreds\n)\n\nCREATE EXTERNAL DATA SOURCE gold_source\nWITH(\n    LOCATION = 'https://synapsdwhlake.dfs.core.windows.net/gold/',\n    CREDENTIAL = yashCreds\n)\n\n--External File Format\nCREATE EXTERNAL FILE FORMAT parquet_format\nWITH (\n    FORMAT_TYPE = PARQUET,\n    DATA_COMPRESSION = 'org.apache.hadoop.io.compress.SnappyCodec'\n)\n\n\nCREATE EXTERNAL FILE FORMAT delta\nWITH (\n    FORMAT_TYPE = DELTA\n)",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "salesDWH",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/sampleSQLFor100TopRpws')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "-- This is auto-generated code\nSELECT\n    TOP 100 *\nFROM\n    OPENROWSET(\n        BULK 'enrichedSales',\n        DATA_SOURCE = 'silver_source',\n        FORMAT = 'PARQUET'\n    ) AS [result]\n\nSELECT * FROM silver.silverTable",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "salesDWH",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/schemas')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "CREATE SCHEMA silver;\n\nCREATE SCHEMA gold;\n\n\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "salesDWH",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/silverTable')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "CREATE EXTERNAL TABLE silver.silverTable\n(\n    OrderID VARCHAR(100),\n    OrderDate DATETIME2,\n    CustomerID VARCHAR(100),\n    CustomerName VARCHAR(100),\n    CustomerEmail VARCHAR(100),\n    ProductID VARCHAR(100),\n    ProductName VARCHAR(100),\n    ProductCategory VARCHAR(100),\n    RegionID VARCHAR(100),\n    RegionName VARCHAR(100),\n    Country VARCHAR(100),\n    Quantity INT,\n    UnitPrice INT,\n    TotalAmount VARCHAR(100),\n    Domain VARCHAR(100)\n)\nWITH (\n    LOCATION = 'enrichedSales',\n    DATA_SOURCE = silver_source, \n    FILE_FORMAT = parquet_format\n)",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "salesDWH",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
 			},
 			"dependsOn": []
 		}

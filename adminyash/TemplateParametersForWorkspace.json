@@ -8,6 +8,9 @@
 		"adminyash-WorkspaceDefaultSqlServer_connectionString": {
 			"value": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:adminyash.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
 		},
+		"ExtLake_properties_typeProperties_url": {
+			"value": "https://synapsdwhlake.dfs.core.windows.net/"
+		},
 		"LS_Datalake_properties_typeProperties_url": {
 			"value": "https://synapsdwhlake.dfs.core.windows.net/"
 		},

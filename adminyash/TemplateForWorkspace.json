@@ -7,14 +7,14 @@
 			"metadata": "Workspace name",
 			"defaultValue": "adminyash"
 		},
+		"LS_ServerLessPool_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'LS_ServerLessPool'"
+		},
 		"adminyash-WorkspaceDefaultSqlServer_connectionString": {
 			"type": "secureString",
 			"metadata": "Secure string for 'connectionString' of 'adminyash-WorkspaceDefaultSqlServer'",
 			"defaultValue": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:adminyash.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
-		},
-		"LS_ServerLessPool_password": {
-			"type": "secureString",
-			"metadata": "Secure string for 'password' of 'LS_ServerLessPool'"
 		},
 		"ExtLake_properties_typeProperties_url": {
 			"type": "string",
@@ -23,10 +23,6 @@
 		"LS_Datalake_properties_typeProperties_url": {
 			"type": "string",
 			"defaultValue": "https://synapsdwhlake.dfs.core.windows.net/"
-		},
-		"adminyash-WorkspaceDefaultStorage_properties_typeProperties_url": {
-			"type": "string",
-			"defaultValue": "https://manageddatalakesynaps.dfs.core.windows.net"
 		},
 		"LS_ServerLessPool_properties_typeProperties_server": {
 			"type": "string",
@@ -39,6 +35,10 @@
 		"LS_ServerLessPool_properties_typeProperties_userName": {
 			"type": "string",
 			"defaultValue": "adminyash"
+		},
+		"adminyash-WorkspaceDefaultStorage_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://manageddatalakesynaps.dfs.core.windows.net"
 		}
 	},
 	"variables": {
@@ -371,7 +371,6 @@
 			},
 			"dependsOn": [
 				"[concat(variables('workspaceId'), '/dataflows/transformationDataFlow')]",
-				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]",
 				"[concat(variables('workspaceId'), '/linkedServices/LS_ServerLessPool')]"
 			]
 		},
@@ -632,6 +631,34 @@
 			]
 		},
 		{
+			"name": "[concat(parameters('workspaceName'), '/LS_ServerLessPool')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDW",
+				"typeProperties": {
+					"server": "[parameters('LS_ServerLessPool_properties_typeProperties_server')]",
+					"database": "[parameters('LS_ServerLessPool_properties_typeProperties_database')]",
+					"encrypt": "optional",
+					"trustServerCertificate": false,
+					"authenticationType": "SQL",
+					"userName": "[parameters('LS_ServerLessPool_properties_typeProperties_userName')]",
+					"password": {
+						"type": "SecureString",
+						"value": "[parameters('LS_ServerLessPool_password')]"
+					}
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
 			"name": "[concat(parameters('workspaceName'), '/adminyash-WorkspaceDefaultSqlServer')]",
 			"type": "Microsoft.Synapse/workspaces/linkedServices",
 			"apiVersion": "2019-06-01-preview",
@@ -856,32 +883,44 @@
 			"dependsOn": []
 		},
 		{
-			"name": "[concat(parameters('workspaceName'), '/LS_ServerLessPool')]",
-			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"name": "[concat(parameters('workspaceName'), '/Dimentions')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
 			"apiVersion": "2019-06-01-preview",
 			"properties": {
-				"annotations": [],
-				"type": "AzureSqlDW",
-				"typeProperties": {
-					"server": "[parameters('LS_ServerLessPool_properties_typeProperties_server')]",
-					"database": "[parameters('LS_ServerLessPool_properties_typeProperties_database')]",
-					"encrypt": "optional",
-					"trustServerCertificate": false,
-					"authenticationType": "SQL",
-					"userName": "[parameters('LS_ServerLessPool_properties_typeProperties_userName')]",
-					"password": {
-						"type": "SecureString",
-						"value": "[parameters('LS_ServerLessPool_password')]"
-					}
+				"content": {
+					"query": "-----------------\n-- DimCustomers\n-----------------\n\nIF NOT EXISTS(SELECT * FROM sys.tables t JOIN sys.schemas s ON t.schema_id = s.schema_id \nWHERE t.name = 'DimCustomer' AND s.name = 'gold')\n    CREATE EXTERNAL TABLE gold.DimCustomer\n    WITH (\n        LOCATION = 'DimCustomer',\n        DATA_SOURCE = gold_source,\n        FILE_FORMAT = parquet_format\n    )\n    AS \n    SELECT *, ROW_NUMBER() OVER (ORDER BY a.CustomerID) as DimCustomerKey\n    FROM\n    (SELECT \n        DISTINCT \n        CustomerID,\n        CustomerName,\n        CustomerEmail,\n        Domain\n    FROM \n        silver.silverTable\n    ) a\n\n-----------------\n-- DimProducts\n-----------------\nIF NOT EXISTS(SELECT * FROM sys.tables t JOIN sys.schemas s ON t.schema_id = s.schema_id \nWHERE t.name = 'DimProduct' AND s.name = 'gold')\n    CREATE EXTERNAL TABLE gold.DimProduct\n    WITH (\n        LOCATION = 'DimProduct',\n        DATA_SOURCE = gold_source,\n        FILE_FORMAT = parquet_format\n    )\n    AS \n    SELECT * , ROW_NUMBER() OVER (ORDER BY b.ProductID) as DimProductKey\n    FROM \n    (SELECT \n        DISTINCT \n        ProductID,\n        ProductName,\n        ProductCategory\n    FROM silver.silverTable ) b\n\n-----------------\n-- DimGeography\n-----------------\nIF NOT EXISTS(SELECT * FROM sys.tables t JOIN sys.schemas s ON t.schema_id = s.schema_id \nWHERE t.name = 'DimGeography' AND s.name = 'gold')\n    CREATE EXTERNAL TABLE gold.DimGeography\n    WITH (\n        LOCATION = 'DimGeography',\n        DATA_SOURCE = gold_source,\n        FILE_FORMAT = parquet_format\n    )\n    AS \n    SELECT *, ROW_NUMBER() OVER (ORDER BY c.RegionID) as DimGeographyKey\n    FROM \n    (SELECT \n        DISTINCT \n        RegionID,\n        Country\n    FROM silver.silverTable\n    ) c\n\n-----------------\n-- DimOrders\n-----------------\nIF NOT EXISTS(SELECT * FROM sys.tables t JOIN sys.schemas s ON t.schema_id = s.schema_id \nWHERE t.name = 'DimOrders' AND s.name = 'gold')\n    CREATE EXTERNAL TABLE gold.DimOrders\n    WITH (\n        LOCATION = 'DimOrders',\n        DATA_SOURCE = gold_source,\n        FILE_FORMAT = parquet_format\n    )\n    AS \n    SELECT * , ROW_NUMBER() OVER (ORDER BY d.CustomerID) as DimOrdersKey\n    FROM \n    (SELECT \n        OrderID,\n        CustomerID,\n        CustomerName,\n        CustomerEmail,\n        ProductID,\n        ProductName,\n        ProductCategory,\n        RegionID,\n        Country,\n        Domain\n    FROM silver.silverTable\n    )d",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "salesDWH",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
 				},
-				"connectVia": {
-					"referenceName": "AutoResolveIntegrationRuntime",
-					"type": "IntegrationRuntimeReference"
-				}
+				"type": "SqlQuery"
 			},
-			"dependsOn": [
-				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
-			]
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/Fact')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "SELECT \n    o.DimOrdersKey,\n    c.DimCustomerKey,\n    p.DimProductKey.\n    g.DimGeographyKey,\n    f.Quantity,\n    f.UnitPrice,\n    f.TotalAmount\nFROM \n    silver.silverTable f\nLEFT JOIN\n    gold.DimOrders o ON f.OrderID = o.OrderID\nLEFT JOIN \n    gold.DimCustomer c ON f.CustomerID = c.CustomerID\nLEFT JOIN\n    gold.DimProduct p ON f.ProductID = p.ProductID\nLEFT JOIN \n    gold.DimGeography g ON f.RegionID = g.RegionID AND f.Country = g.Country",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "salesDWH",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
 		}
 	]
 }

@@ -371,7 +371,6 @@
 			},
 			"dependsOn": [
 				"[concat(variables('workspaceId'), '/dataflows/transformationDataFlow')]",
-				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]",
 				"[concat(variables('workspaceId'), '/linkedServices/LS_ServerLessPool')]"
 			]
 		},
@@ -829,7 +828,7 @@
 			"apiVersion": "2019-06-01-preview",
 			"properties": {
 				"content": {
-					"query": "SELECT \n    o.DimOrdersKey,\n    c.DimCustomerKey,\n    p.DimProductKey.\n    g.DimGeographyKey,\n    f.Quantity,\n    f.UnitPrice,\n    f.TotalAmount\nFROM \n    silver.silverTable f\nLEFT JOIN\n    gold.DimOrders o ON f.OrderID = o.OrderID\nLEFT JOIN \n    gold.DimCustomer c ON f.CustomerID = c.CustomerID\nLEFT JOIN\n    gold.DimProduct p ON f.ProductID = p.ProductID\nLEFT JOIN \n    gold.DimGeography g ON f.RegionID = g.RegionID AND f.Country = g.Country",
+					"query": "IF NOT EXISTS(SELECT * FROM sys.tables t JOIN sys.schemas s ON t.schema_id = s.schema_id \nWHERE t.name = 'FactOrders' AND s.name = 'gold')\n    CREATE EXTERNAL TABLE gold.FactOrders\n    WITH (\n        LOCATION = 'FactOrders',\n        DATA_SOURCE = gold_source,\n        FILE_FORMAT = parquet_format\n    )\n    AS\n    SELECT \n        o.DimOrdersKey,\n        c.DimCustomerKey,\n        p.DimProductKey,\n        g.DimGeographyKey,\n        f.Quantity,\n        f.UnitPrice,\n        f.TotalAmount\n    FROM \n        silver.silverTable f\n    LEFT JOIN\n        gold.DimOrders o ON f.OrderID = o.OrderID\n    LEFT JOIN \n        gold.DimCustomer c ON f.CustomerID = c.CustomerID\n    LEFT JOIN\n        gold.DimProduct p ON f.ProductID = p.ProductID\n    LEFT JOIN \n        gold.DimGeography g ON f.RegionID = g.RegionID AND f.Country = g.Country\n\n",
 					"metadata": {
 						"language": "sql"
 					},
